@@ -1,0 +1,176 @@
+<!DOCTYPE html>
+<html lang="ar" dir="rtl">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>نظامي اليومي</title>
+<style>
+:root{--bg:#f6f5f1;--card:#fff;--tx:#1d1d1b;--mut:#6b6b66;--ac:#0f766e;--ac2:#e8f3f1;--bd:#e3e1da;--me:#0f766e;--mt:#fff;box-sizing:border-box;padding-top:env(safe-area-inset-top,0px);padding-bottom:env(safe-area-inset-bottom,0px)}
+@media(prefers-color-scheme:dark){:root:not([data-theme="light"]){--bg:#141413;--card:#1e1e1c;--tx:#f0efe9;--mut:#a3a39b;--ac:#2dd4bf;--ac2:#17302d;--bd:#33332f;--me:#2dd4bf;--mt:#0b1f1c}}
+:root[data-theme="dark"]{--bg:#141413;--card:#1e1e1c;--tx:#f0efe9;--mut:#a3a39b;--ac:#2dd4bf;--ac2:#17302d;--bd:#33332f;--me:#2dd4bf;--mt:#0b1f1c}
+*{box-sizing:border-box}
+html{scroll-padding-top:env(safe-area-inset-top,0px)}
+body{margin:0;background:var(--bg);color:var(--tx);font-family:system-ui,-apple-system,"Segoe UI",Tahoma,sans-serif;line-height:1.6}
+.w{max-width:640px;margin:0 auto;padding:16px}
+h1{font-size:20px;margin:4px 0 12px}
+.card{background:var(--card);border:1px solid var(--bd);border-radius:14px;padding:14px;margin-bottom:12px}
+.g{display:grid;grid-template-columns:1fr 1fr;gap:10px}
+.lbl{font-size:13px;color:var(--mut)}
+.big{font-size:22px;font-weight:700}
+.bar{height:8px;background:var(--ac2);border-radius:99px;overflow:hidden;margin:6px 0}
+.bar i{display:block;height:100%;background:var(--ac);border-radius:99px;width:0;transition:width .4s}
+input,textarea{width:100%;font:inherit;color:var(--tx);background:var(--bg);border:1px solid var(--bd);border-radius:10px;padding:10px}
+button{font:inherit;border:0;border-radius:10px;padding:10px 14px;background:var(--ac);color:var(--mt);font-weight:600;cursor:pointer}
+button.s{background:var(--ac2);color:var(--ac)}
+button:disabled{opacity:.5}
+.tabs{display:flex;gap:6px;margin-bottom:12px}
+.tabs button{flex:1;background:var(--card);color:var(--mut);border:1px solid var(--bd)}
+.tabs button.on{background:var(--ac);color:var(--mt);border-color:var(--ac)}
+#msgs{display:flex;flex-direction:column;gap:8px;max-height:52vh;overflow-y:auto;margin-bottom:10px}
+.m{padding:10px 12px;border-radius:14px;max-width:88%;white-space:pre-wrap}
+.m.u{background:var(--me);color:var(--mt);align-self:flex-start}
+.m.a{background:var(--ac2);align-self:flex-end}
+.row{display:flex;gap:8px}
+.log{border-top:1px solid var(--bd);padding:10px 0}
+.log:first-child{border:0}
+.hide{display:none}
+</style>
+</head>
+<body>
+<div class="w">
+<h1>🏋️ نظامي اليومي</h1>
+
+<div class="card">
+  <div class="g">
+    <div>
+      <div class="lbl">عقلة مريحة (الهدف 15)</div>
+      <div class="big"><span id="pv">0</span> / 15</div>
+      <div class="bar"><i id="pb"></i></div>
+    </div>
+    <div>
+      <div class="lbl">جري 2 كم (الهدف 8:00)</div>
+      <div class="big" id="rv">—</div>
+      <div class="bar"><i id="rb"></i></div>
+    </div>
+  </div>
+  <div class="row" style="margin-top:8px">
+    <input id="pin" type="number" min="0" placeholder="أقصى عقلة" inputmode="numeric">
+    <input id="rin" placeholder="وقت 2 كم (مثلاً 9:30)" inputmode="text" dir="ltr">
+    <button class="s" id="sv">حفظ</button>
+  </div>
+</div>
+
+<div class="tabs">
+  <button data-t="c" class="on">المدرب</button>
+  <button data-t="p">خطة النهارده</button>
+  <button data-t="l">السجل</button>
+</div>
+
+<div id="t-c">
+  <div class="card">
+    <div id="msgs"></div>
+    <div class="row">
+      <textarea id="inp" rows="2" placeholder="احكيلي يومك..."></textarea>
+      <button id="send">إرسال</button>
+    </div>
+    <div class="row" style="margin-top:8px">
+      <button class="s" id="sum" style="flex:1">💾 احفظ ملخص اليوم + خطة بكرة</button>
+      <button class="s" id="clr">مسح الشات</button>
+    </div>
+    <div class="lbl" id="st" style="margin-top:6px"></div>
+  </div>
+</div>
+
+<div id="t-p" class="hide"><div class="card" id="plan" style="white-space:pre-wrap"></div></div>
+<div id="t-l" class="hide"><div class="card" id="logs"></div></div>
+</div>
+
+<script>
+const $=id=>document.getElementById(id);
+const KEY="daily-coach-v1";
+let S={pull:0,run:0,logs:[],chat:[],plan:""};
+try{const r=localStorage.getItem(KEY);if(r)S=Object.assign(S,JSON.parse(r))}catch(e){}
+const save=()=>{try{localStorage.setItem(KEY,JSON.stringify(S))}catch(e){}};
+const fmt=s=>s?Math.floor(s/60)+":"+String(Math.round(s%60)).padStart(2,"0"):"—";
+const parse=t=>{t=(t||"").trim();if(!t)return 0;const m=t.split(":");return m.length==2?(+m[0])*60+(+m[1]):+t||0};
+const today=()=>new Date().toLocaleDateString("en-CA");
+
+function stats(){
+  $("pv").textContent=S.pull;$("pb").style.width=Math.min(100,S.pull/15*100)+"%";
+  $("rv").textContent=fmt(S.run);$("rb").style.width=S.run?Math.min(100,480/S.run*100)+"%":"0";
+  $("plan").textContent=S.plan||"لسه مفيش خطة. كلم المدرب واضغط «احفظ ملخص اليوم».";
+  $("logs").innerHTML=S.logs.length?S.logs.slice().reverse().map(l=>`<div class="log"><b>${l.date}</b><div></div></div>`).join(""):"مفيش سجل لسه.";
+  document.querySelectorAll("#logs .log div").forEach((d,i)=>d.textContent=S.logs.slice().reverse()[i].text);
+}
+function msgs(){
+  const box=$("msgs");box.innerHTML="";
+  S.chat.forEach(m=>{const d=document.createElement("div");d.className="m "+(m.role=="user"?"u":"a");d.textContent=m.content;box.appendChild(d)});
+  box.scrollTop=box.scrollHeight;
+}
+document.querySelectorAll(".tabs button").forEach(b=>b.onclick=()=>{
+  document.querySelectorAll(".tabs button").forEach(x=>x.classList.toggle("on",x==b));
+  ["c","p","l"].forEach(t=>$("t-"+t).classList.toggle("hide",t!=b.dataset.t));
+});
+$("sv").onclick=()=>{
+  const p=parseInt($("pin").value),r=parse($("rin").value);
+  if(!isNaN(p))S.pull=p; if(r)S.run=r;
+  $("pin").value="";$("rin").value="";save();stats();
+};
+
+function context(){
+  const recent=S.logs.slice(-7).map(l=>l.date+": "+l.text).join("\n")||"لسه مفيش سجل";
+  return `انت مدربي الشخصي ومنظم يومي. اتكلم بالعامية المصرية، ردود قصيرة ودافية، وسؤال واحد في المرة.
+هدف المستخدم: يعمل 15 عقلة مريحة وجري 2 كم في 8 دقايق أو أقل.
+وضعه الحالي: أقصى عقلة = ${S.pull}، أفضل 2 كم = ${fmt(S.run)}.
+تاريخ النهارده: ${today()}.
+آخر سجلات الأيام اللي فاتت:
+${recent}
+الخطة الحالية: ${S.plan||"لا يوجد"}
+مهمتك: اسأله يومه هيبقى فيه إيه (شغل، مواعيد، نوم، طاقة)، اسأله عمل إيه امبارح لو مش واضح، وبعدين نسقله اليوم والشغل والتمرين (عقلة وجري) بشكل تدريجي وواقعي مع أيام راحة. تابع تقدمه ناحية الهدفين. لو ذكر ألم أو إصابة نصحه يخفف ويستشير مختص.`;
+}
+async function ask(turns){
+  const sample=await claude.use("sample");
+  if(!sample)throw {message:"المدرب مش متاح هنا"};
+  return sample(turns,{cache:false});
+}
+async function send(txt){
+  S.chat.push({role:"user",content:txt});save();msgs();
+  $("send").disabled=true;$("st").textContent="المدرب بيكتب...";
+  try{
+    let h=S.chat.slice(-14);
+    while(h.length&&h[0].role!="user")h=h.slice(1);
+    const turns=h.map((m,i)=>({role:m.role,content:i==0?context()+"\n\n"+m.content:m.content}));
+    const r=await ask(turns);
+    S.chat.push({role:"assistant",content:r.text});save();msgs();$("st").textContent="";
+  }catch(e){$("st").textContent="حصلت مشكلة: "+(e.message||e.code||"")}
+  $("send").disabled=false;
+}
+$("send").onclick=()=>{const t=$("inp").value.trim();if(!t)return;$("inp").value="";send(t)};
+$("clr").onclick=()=>{S.chat=[];save();msgs()};
+$("sum").onclick=async()=>{
+  if(S.chat.length<2){$("st").textContent="احكي مع المدرب الأول.";return}
+  $("sum").disabled=true;$("st").textContent="بحفظ الملخص...";
+  try{
+    const sample=await claude.use("sample");
+    const conv=S.chat.map(m=>(m.role=="user"?"أنا: ":"المدرب: ")+m.content).join("\n");
+    const r=await sample.json(`${context()}
+
+المحادثة:
+${conv}
+
+رجّع JSON فقط بالشكل ده:
+{"summary":"ملخص اللي حصل النهارده والشغل والتمرين بالعامية المصرية في 2-4 جمل","pull":رقم أقصى عقلة جديد أو null,"run_sec":ثواني جري 2 كم جديدة أو null,"plan":"خطة بكرة (شغل + تمرين + راحة) بنقط قصيرة بالعامية"}`,{cache:false});
+    S.logs.push({date:today(),text:r.summary});
+    if(typeof r.pull=="number"&&r.pull>0)S.pull=r.pull;
+    if(typeof r.run_sec=="number"&&r.run_sec>0&&(!S.run||r.run_sec<S.run))S.run=r.run_sec;
+    S.plan=r.plan||S.plan;S.chat=[];save();stats();msgs();
+    $("st").textContent="اتحفظ ✅ شوف تاب الخطة.";
+  }catch(e){$("st").textContent="حصلت مشكلة: "+(e.message||e.code||"")}
+  $("sum").disabled=false;
+};
+
+stats();msgs();
+if(!S.chat.length)S.chat.push({role:"assistant",content:"صباح الخير! أنا مدربك. يومك النهارده هيبقى فيه إيه؟ شغل، مواعيد، ولا وقت فاضي؟ وعملت إيه امبارح؟"}),msgs();
+</script>
+</body>
+</html>
